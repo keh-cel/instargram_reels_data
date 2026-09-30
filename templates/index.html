@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>릴스 분석기</title>
+<style>
+  :root {
+    --purple: #7c3aed;
+    --purple-dark: #6d28d9;
+    --bg: #fafafa;
+    --card: #ffffff;
+    --border: #e5e5e5;
+    --text: #111111;
+    --muted: #8a8a8a;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 32px 24px 80px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 24px; }
+  header h1 { font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -0.5px; }
+  header p { color: var(--muted); margin: 6px 0 0; font-size: 14px; }
+
+  .tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; }
+  .tabs button { border: none; background: transparent; padding: 10px 18px; border-radius: 999px; font-size: 14px; font-weight: 600; color: #555; cursor: pointer; }
+  .tabs button.active { background: var(--purple); color: #fff; }
+
+  .collect-bar { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; }
+  .collect-bar input[type="text"] { width: 480px; max-width: 60vw; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); font-size: 14px; background: #f2f2f2; }
+  .collect-bar button { background: var(--purple); color: #fff; border: none; padding: 0 22px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .collect-bar button:hover { background: var(--purple-dark); }
+  .collect-bar button:disabled { opacity: 0.6; cursor: default; }
+
+  .settings-toggle { display: block; margin: 0 auto 14px; background: #fff; border: 1px solid var(--border); color: #555; font-size: 12px; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+  .settings-panel { max-width: 480px; margin: 0 auto 16px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; font-size: 13px; display: flex; gap: 18px; align-items: center; justify-content: center; }
+  .settings-panel label { display: flex; align-items: center; gap: 6px; }
+  .settings-panel input[type="number"] { width: 60px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; }
+
+  .chips-row { display: flex; align-items: center; gap: 8px; overflow-x: auto; padding: 4px 0 18px; }
+  .chip { flex: 0 0 auto; background: #f2f2f2; border: 1px solid transparent; border-radius: 999px; padding: 8px 14px; font-size: 12px; color: #555; cursor: pointer; white-space: nowrap; }
+  .chip.active { background: #efe6ff; border-color: var(--purple); color: var(--purple-dark); font-weight: 600; }
+  .chip-empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; min-height: 120px; }
+  .panel + .panel { margin-top: 14px; }
+  [hidden] { display: none !important; }
+
+  .log-box { font-size: 13px; line-height: 1.9; color: #444; }
+  .log-box .line::before { content: "•  "; color: var(--muted); }
+  .placeholder { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 0; }
+
+  .detail-layout { display: grid; grid-template-columns: 260px 1fr; gap: 18px; }
+  .reel-list { display: flex; flex-direction: column; gap: 8px; max-height: 560px; overflow-y: auto; }
+  .reel-list-item { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer; font-size: 12px; }
+  .reel-list-item.active { border-color: var(--purple); background: #faf5ff; }
+  .reel-list-item .owner { font-weight: 700; font-size: 13px; }
+  .reel-list-item .cap { color: var(--muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .detail-main { display: grid; grid-template-columns: 260px 1fr; gap: 20px; }
+  .detail-video video { width: 100%; border-radius: 12px; background: #000; }
+  .stat-row { display: flex; gap: 22px; margin-top: 14px; }
+  .stat-row div { text-align: center; }
+  .stat-row .v { font-size: 16px; font-weight: 700; }
+  .stat-row .k { font-size: 11px; color: var(--muted); }
+
+  .script-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .script-head .title { font-weight: 700; }
+  .badge { background: #efe6ff; color: var(--purple-dark); font-size: 11px; padding: 3px 9px; border-radius: 999px; margin-left: 8px; }
+  .script-actions button { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; margin-left: 6px; }
+  .script-actions button:hover { background: #f2f2f2; }
+  .script-lines { max-height: 460px; overflow-y: auto; font-size: 13px; }
+  .script-line { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+  .script-line .t { color: var(--purple); font-variant-numeric: tabular-nums; width: 60px; flex: none; }
+
+  .bench-form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .bench-form select { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 13px; background: #f2f2f2; max-width: 320px; }
+  .bench-form input[type="text"] { flex: 1; min-width: 200px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 13px; background: #f2f2f2; }
+  .bench-form button { background: var(--purple); color: #fff; border: none; padding: 0 18px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .bench-form button:hover { background: var(--purple-dark); }
+  .bench-form button:disabled { opacity: 0.6; cursor: default; }
+
+  .bench-card { border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: #fff; }
+  .bench-card + .bench-card { margin-top: 12px; }
+  .bench-card-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .bench-card-head .kw { font-weight: 700; font-size: 15px; }
+  .bench-card-head .meta { color: var(--muted); font-size: 11px; }
+  .bench-hook { background: #faf5ff; border-left: 3px solid var(--purple); padding: 8px 12px; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .bench-seg { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+  .bench-seg:last-child { border-bottom: none; }
+  .bench-seg .t { color: var(--purple-dark); font-variant-numeric: tabular-nums; width: 48px; flex: none; }
+  .bench-seg .role { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .bench-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; font-size: 12px; }
+  .bench-foot .k { color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+  .bench-notes { margin-top: 10px; font-size: 12px; color: #444; background: #f9f9f9; border-radius: 8px; padding: 8px 12px; }
+
+  .report-head { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .report-head .title { font-weight: 700; font-size: 15px; }
+  .report-head .badge { background: #efe6ff; color: var(--purple-dark); font-size: 11px; padding: 3px 9px; border-radius: 999px; }
+  .report-body { margin-top: 12px; font-size: 13px; line-height: 1.7; max-height: 480px; overflow-y: auto; }
+  .report-body h1, .report-body h2, .report-body h3 { font-size: 14px; margin: 16px 0 6px; }
+  .report-body ul { padding-left: 18px; }
+  .report-body.collapsed { display: none; }
+
+  .reel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 16px; }
+  .reel-card { position: relative; border-radius: 10px; overflow: hidden; aspect-ratio: 9 / 16; background: #e5e5e5; cursor: pointer; }
+  .reel-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .reel-card .no-thumb { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #999; font-size: 11px; text-align: center; padding: 8px; }
+  .reel-card.error { background: #fee2e2; color: #b91c1c; font-size: 11px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px; cursor: default; }
+  .reel-card .badge-pinned { position: absolute; top: 6px; left: 6px; background: #facc15; color: #111; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 5px; }
+  .reel-card .badge-date { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.55); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 5px; }
+  .reel-card .stats-overlay { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 8px 8px; background: linear-gradient(to top, rgba(0,0,0,0.78), rgba(0,0,0,0)); display: flex; gap: 8px; font-size: 11px; color: #fff; }
+  .reel-card .stats-overlay span { display: flex; align-items: center; gap: 3px; }
+
+  .dissect-toggle { display: block; margin-top: 16px; background: #fff; border: 1px solid var(--border); color: var(--purple-dark); font-weight: 600; font-size: 12px; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
+  .dissect-toggle:hover { background: #faf5ff; }
+  .dissect-panel { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 16px; max-width: 100%; overflow-x: auto; }
+  .dissect-panel.collapsed { display: none; }
+  .dissect-panel * { min-width: 0; }
+  .dissect-panel img, .dissect-panel video { max-width: 100%; }
+  .dissect-head { font-size: 12px; color: var(--muted); line-height: 1.8; }
+  .dissect-head b { color: var(--text); }
+  .dissect-section-title { font-weight: 700; font-size: 14px; margin: 18px 0 8px; }
+  .dissect-grid { display: grid; gap: 8px; margin-bottom: 4px; }
+  .dissect-grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  .dissect-grid.cols-4 { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+  .dissect-grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .dissect-box { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 12px; background: #fff; overflow-wrap: anywhere; }
+  .dissect-box .k { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+  .dissect-box .v { font-weight: 700; font-size: 14px; }
+  .dissect-box .sub { color: var(--muted); font-size: 11px; margin-top: 4px; }
+  .dissect-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-bottom: 6px; }
+  .dissect-badge.on { background: #dcfce7; color: #15803d; }
+  .dissect-badge.off { background: #f2f2f2; color: #888; }
+  .dissect-badge.tag { background: #efe6ff; color: var(--purple-dark); margin-right: 4px; }
+  .dissect-evidence { color: #444; font-size: 12px; margin-top: 4px; }
+  .dissect-quote { border-left: 3px solid var(--purple); padding: 4px 10px; margin-top: 6px; font-size: 12px; background: #faf5ff; }
+  .dissect-quote .ts { color: var(--purple-dark); font-weight: 700; margin-right: 6px; font-variant-numeric: tabular-nums; }
+  .dissect-note { color: var(--muted); font-size: 11px; margin-top: 4px; font-style: italic; }
+  .dissect-visual-list { font-size: 12px; color: #444; margin-top: 6px; padding-left: 18px; }
+
+  .dissect-timeline-wrap { margin: 12px 0 16px; }
+  .dissect-timeline { position: relative; display: flex; height: 28px; border-radius: 6px; overflow: hidden; background: #f2f2f2; }
+  .dissect-timeline .tl-seg { display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; border-right: 1px solid #fff; min-width: 2%; }
+  .dissect-timeline .tl-seg.intro { background: #fb923c; }
+  .dissect-timeline .tl-seg.item { background: #c4b5fd; color: #4c1d95; }
+  .dissect-timeline .tl-marker { position: absolute; top: 0; bottom: 0; width: 3px; background: #dc2626; }
+  .dissect-timeline-ticks { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 4px; }
+  .dissect-legend { display: flex; gap: 14px; font-size: 11px; color: #555; margin-top: 6px; }
+  .dissect-legend span { display: flex; align-items: center; gap: 5px; }
+  .dissect-legend .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .dissect-legend .sw.intro { background: #fb923c; }
+  .dissect-legend .sw.item { background: #c4b5fd; }
+  .dissect-legend .sw.marker { background: #dc2626; }
+  .dissect-seg-item { border-bottom: 1px dashed var(--border); padding: 10px 2px; font-size: 13px; overflow-wrap: anywhere; }
+  .dissect-seg-item:last-child { border-bottom: none; }
+  .dissect-seg-head { font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .dissect-seg-head span { color: var(--muted); font-weight: 400; }
+
+  .dtype-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
+  .dtype-badge.real { background: #dbeafe; color: #1d4ed8; }
+  .dtype-badge.calc { background: #fef3c7; color: #92400e; }
+  .dtype-badge.ai { background: #efe6ff; color: var(--purple-dark); }
+
+  .role-badge { display: inline-block; background: #111; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 5px; letter-spacing: 0.02em; }
+
+  .struct-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+  .struct-node { background: #111; color: #fff; font-weight: 700; font-size: 11px; padding: 5px 10px; border-radius: 6px; white-space: nowrap; }
+  .struct-arrow { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>릴스 분석기</h1>
+    <p>잘 터진 구조를 뜯어보고 내 키워드로 훑는다</p>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="collect" class="active">릴스 수집</button>
+    <button data-tab="detail">해부 분석</button>
+    <button data-tab="bench">벤치마킹 대본</button>
+  </nav>
+
+  <div class="collect-bar">
+    <input type="text" id="query-input" placeholder="https://www.instagram.com/username/reels/ 또는 #해시태그 또는 계정 아이디">
+    <button id="collect-btn">수집</button>
+  </div>
+  <button class="settings-toggle" id="settings-toggle">상세 설정</button>
+  <div class="settings-panel" id="settings-panel" hidden>
+    <label>개수 <input type="number" id="count-input" value="10" min="1" max="50"></label>
+    <label><input type="radio" name="mode" value="auto" checked> 자동</label>
+    <label><input type="radio" name="mode" value="account"> 계정</label>
+    <label><input type="radio" name="mode" value="hashtag"> 해시태그</label>
+  </div>
+
+  <div class="chips-row" id="chips-row"></div>
+
+  <div class="tab-panel" id="tab-collect">
+    <div class="panel">
+      <div class="log-box" id="log-box"></div>
+      <div class="placeholder" id="collect-placeholder">계정 아이디, #해시태그 또는 URL을 넣고 수집을 누르세요.</div>
+      <div class="reel-grid" id="collect-grid"></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-detail" hidden>
+    <div class="panel" id="ai-report-panel"></div>
+    <div class="panel detail-layout">
+      <div class="reel-list" id="reel-list"></div>
+      <div id="detail-view"><div class="placeholder">왼쪽 목록에서 릴스를 선택하세요.</div></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-bench" hidden>
+    <div class="panel">
+      <div class="bench-form">
+        <select id="bench-reel-select"></select>
+        <input type="text" id="bench-keyword-input" placeholder="벤치마킹하고 싶은 키워드 (예: 유모차)">
+        <button id="bench-create-btn">벤치마킹 대본 만들기</button>
+      </div>
+      <div class="dissect-note" id="bench-form-hint" style="margin-top:8px;"></div>
+    </div>
+    <div class="panel" id="bench-panel"><div class="placeholder">아직 생성한 벤치마킹 대본이 없습니다.</div></div>
+  </div>
+</div>
+
+<script>
+let RUNS = {{ runs | tojson }};
+let selectedSlug = RUNS.length ? RUNS[0].slug : null;
+let selectedReelIdx = 0;
+let activeTab = "collect";
+let pollTimer = null;
+
+function currentRun() {
+  return RUNS.find(r => r.slug === selectedSlug) || null;
+}
+
+function formatChipTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, "0");
+  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatCount(n) {
+  if (n === null || n === undefined) return "-";
+  if (n >= 10000) {
+    const v = (n / 10000).toFixed(1).replace(/\.0$/, "");
+    return v + "만";
+  }
+  return n.toLocaleString();
+}
+
+function formatDuration(sec) {
+  if (sec === null || sec === undefined) return "-";
+  sec = Math.round(sec);
+  if (sec < 60) return sec + "초";
+  return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+}
+
+function formatTime(sec) {
+  if (sec === null || sec === undefined) return "";
+  const m = Math.floor(sec / 60);
+  const rem = (sec % 60).toFixed(2).padStart(5, "0");
+  return `${m}:${rem}`;
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.getElementById("tab-collect").hidden = tab !== "collect";
+  document.getElementById("tab-detail").hidden = tab !== "detail";
+  document.getElementById("tab-bench").hidden = tab !== "bench";
+  if (tab === "detail") renderDetail();
+  if (tab === "bench") renderBench();
+}
+
+function renderChips() {
+  const row = document.getElementById("chips-row");
+  row.innerHTML = "";
+  if (!RUNS.length) {
+    row.innerHTML = '<div class="chip-empty">아직 수집한 결과가 없습니다.</div>';
+    return;
+  }
+  RUNS.forEach(run => {
+    const chip = document.createElement("button");
+    chip.className = "chip" + (run.slug === selectedSlug ? " active" : "");
+    chip.textContent = `${run.label} · ${formatChipTime(run.created_at)}`;
+    chip.onclick = () => {
+      selectedSlug = run.slug;
+      selectedReelIdx = 0;
+      renderChips();
+      renderCollectPlaceholder();
+      if (activeTab === "detail") renderDetail();
+      if (activeTab === "bench") renderBench();
+    };
+    row.appendChild(chip);
+  });
+}
+
+function renderCollectPlaceholder() {
+  const run = currentRun();
+  const box = document.getElementById("log-box");
+  const ph = document.getElementById("collect-placeholder");
+  if (!run) { box.innerHTML = ""; ph.hidden = false; renderCollectGrid(); return; }
+  ph.hidden = true;
+  const ok = run.results.filter(r => !r.error).length;
+  box.innerHTML = [
+    `${run.type === "hashtag" ? "해시태그" : "계정"} · ${run.label} 최근 ${run.count}개를 ${run.type === "hashtag" ? "조회수순" : "최신순"}으로 수집`,
+    `${ok}/${run.results.length}개 처리 완료 (전사 + 훅 클립 생성)`,
+  ].map(t => `<div class="line">${t}</div>`).join("");
+  renderCollectGrid();
+}
+
+function renderCollectGrid() {
+  const run = currentRun();
+  const grid = document.getElementById("collect-grid");
+  grid.innerHTML = "";
+  if (!run || !run.results.length) return;
+
+  run.results.forEach((r, i) => {
+    const card = document.createElement("div");
+
+    if (r.error) {
+      card.className = "reel-card error";
+      card.textContent = "처리 실패";
+      grid.appendChild(card);
+      return;
+    }
+
+    card.className = "reel-card";
+    const dateStr = r.timestamp ? r.timestamp.slice(0, 10) : "";
+    card.innerHTML = `
+      ${r.thumbnail_url
+        ? `<img src="${r.thumbnail_url}" alt="">`
+        : `<div class="no-thumb">${r.owner_username ? "@" + r.owner_username : "썸네일 없음"}</div>`}
+      ${r.is_pinned ? '<div class="badge-pinned">고정</div>' : ""}
+      ${dateStr ? `<div class="badge-date">${dateStr}</div>` : ""}
+      <div class="stats-overlay">
+        <span>▶ ${formatCount(r.views_count)}</span>
+        <span>♥ ${formatCount(r.likes_count)}</span>
+        <span>💬 ${formatCount(r.comments_count)}</span>
+      </div>`;
+    card.onclick = () => {
+      selectedReelIdx = i;
+      switchTab("detail");
+    };
+    grid.appendChild(card);
+  });
+}
+
+function renderReelList() {
+  const run = currentRun();
+  const list = document.getElementById("reel-list");
+  list.innerHTML = "";
+  if (!run || !run.results.length) return;
+  run.results.forEach((r, i) => {
+    const item = document.createElement("div");
+    item.className = "reel-list-item" + (i === selectedReelIdx ? " active" : "");
+    item.innerHTML = `<div class="owner">${r.owner_username ? "@" + r.owner_username : "reel " + (i + 1)}</div>
+      <div class="cap">${r.error ? "실패: " + r.error : (r.caption || r.transcript_text || "")}</div>`;
+    item.onclick = () => { selectedReelIdx = i; renderReelList(); renderDetailView(); };
+    list.appendChild(item);
+  });
+}
+
+function renderDetailView() {
+  const run = currentRun();
+  const view = document.getElementById("detail-view");
+  if (!run || !run.results.length) {
+    view.innerHTML = '<div class="placeholder">왼쪽 목록에서 릴스를 선택하세요.</div>';
+    return;
+  }
+  const r = run.results[selectedReelIdx];
+  if (r.error) {
+    view.innerHTML = `<div class="placeholder">이 릴스는 처리에 실패했습니다: ${r.error}</div>`;
+    return;
+  }
+  const lines = (r.segments || []).map(s =>
+    `<div class="script-line"><div class="t">${formatTime(s.start)}</div><div>${s.text}</div></div>`
+  ).join("") || `<div class="script-line"><div></div><div>${r.transcript_text || ""}</div></div>`;
+
+  view.innerHTML = `
+    <div class="detail-main">
+      <div class="detail-video">
+        <video controls src="${r.video_url || ""}"></video>
+        <div class="stat-row">
+          <div><div class="v">${formatCount(r.views_count)}</div><div class="k">조회수</div></div>
+          <div><div class="v">${formatCount(r.likes_count)}</div><div class="k">좋아요</div></div>
+          <div><div class="v">${formatCount(r.comments_count)}</div><div class="k">댓글</div></div>
+          <div><div class="v">${formatDuration(r.duration_seconds)}</div><div class="k">길이</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="script-head">
+          <div class="title">대본 <span class="badge">whisper-1</span></div>
+          <div class="script-actions">
+            <button id="follow-btn">따라가기</button>
+            <button id="copy-btn">복사</button>
+          </div>
+        </div>
+        <div class="script-lines">${lines}</div>
+      </div>
+    </div>
+    <button class="dissect-toggle" id="dissect-toggle">해부분석</button>
+    <div class="dissect-panel collapsed" id="dissect-panel"></div>`;
+
+  document.getElementById("follow-btn").onclick = () => {
+    if (r.owner_username) window.open(`https://www.instagram.com/${r.owner_username}/`, "_blank");
+  };
+  document.getElementById("copy-btn").onclick = () => {
+    navigator.clipboard.writeText(r.transcript_text || "").then(() => {
+      const btn = document.getElementById("copy-btn");
+      const old = btn.textContent;
+      btn.textContent = "복사됨";
+      setTimeout(() => { btn.textContent = old; }, 1200);
+    });
+  };
+  document.getElementById("dissect-toggle").onclick = () => {
+    const panel = document.getElementById("dissect-panel");
+    if (panel.classList.contains("collapsed") && !panel.dataset.rendered) {
+      panel.innerHTML = renderDissectionHtml(r);
+      panel.dataset.rendered = "1";
+      const benchBtn = document.getElementById("dissect-benchmark-btn");
+      if (benchBtn) {
+        benchBtn.onclick = async () => {
+          switchTab("bench");
+          await renderBench();
+          const select = document.getElementById("bench-reel-select");
+          if (select) select.value = String(selectedReelIdx);
+        };
+      }
+    }
+    panel.classList.toggle("collapsed");
+  };
+}
+
+function shortCodeFromUrl(url) {
+  if (!url) return "";
+  const m = url.match(/\/(?:p|reel)\/([^/]+)/);
+  return m ? m[1] : "";
+}
+
+function yesNo(v) {
+  if (v === true) return "예";
+  if (v === false) return "아니오";
+  return "불명";
+}
+
+function tagBadges(tags) {
+  if (!tags || !tags.length) return '<span class="dissect-badge off">없음</span>';
+  return tags.map(t => `<span class="dissect-badge tag">${t}</span>`).join("");
+}
+
+function formatTs(sec) {
+  if (sec === null || sec === undefined) return "0:00.00";
+  const m = Math.floor(sec / 60);
+  const s = (sec % 60).toFixed(2).padStart(5, "0");
+  return `${m}:${s}`;
+}
+
+function dtag(type) {
+  const cls = type === "실제" ? "real" : type === "계산" ? "calc" : "ai";
+  return `<span class="dtype-badge ${cls}">${type}</span>`;
+}
+
+function pillList(arr, empty) {
+  if (!arr || !arr.length) return `<span class="dissect-badge off">${empty || "없음"}</span>`;
+  return arr.map(t => `<span class="dissect-badge tag">${t}</span>`).join("");
+}
+
+function fmtPct(v) { return v != null ? v.toFixed(1) + "%" : "-"; }
+function fmtRatio(v) { return v != null ? v.toFixed(1) + "배" : "-"; }
+function fmtSecVal(v) { return v != null ? v.toFixed(1) + "초" : "-"; }
+function splitDate(iso) {
+  if (!iso) return { date: "-", time: "-" };
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
+
+function renderPerformanceSection(p) {
+  const { date, time } = splitDate(p.posted_at);
+  return `
+    <div class="dissect-section-title">01. 콘텐츠 기본 성과 ${dtag("실제")}</div>
+    <div class="dissect-grid cols-4">
+      <div class="dissect-box"><div class="k">조회수</div><div class="v">${formatCount(p.views)}</div></div>
+      <div class="dissect-box"><div class="k">좋아요</div><div class="v">${formatCount(p.likes)}</div></div>
+      <div class="dissect-box"><div class="k">댓글</div><div class="v">${formatCount(p.comments)}</div></div>
+      <div class="dissect-box"><div class="k">영상 길이</div><div class="v">${fmtSecVal(p.duration_seconds)}</div></div>
+      <div class="dissect-box"><div class="k">게시일</div><div class="v" style="font-size:13px;">${date}</div></div>
+      <div class="dissect-box"><div class="k">게시 시간</div><div class="v" style="font-size:13px;">${time}</div></div>
+      <div class="dissect-box"><div class="k">팔로워 수</div><div class="v">${p.followers != null ? formatCount(p.followers) : "미조회"}</div></div>
+      <div class="dissect-box"><div class="k">캡션 첫 줄</div><div class="v" style="font-size:12px;">${(p.caption || "").split("\n")[0] || "-"}</div></div>
+    </div>
+    <div class="dissect-grid cols-3" style="margin-top:8px;">
+      <div class="dissect-box"><div class="k">좋아요율 ${dtag("계산")}</div><div class="v">${fmtPct(p.like_rate)}</div><div class="sub">좋아요 ÷ 조회수</div></div>
+      <div class="dissect-box"><div class="k">댓글률 ${dtag("계산")}</div><div class="v">${fmtPct(p.comment_rate)}</div><div class="sub">댓글 ÷ 조회수</div></div>
+      <div class="dissect-box"><div class="k">팔로워 대비 조회 효율 ${dtag("계산")}</div><div class="v">${fmtRatio(p.follow_view_ratio)}</div><div class="sub">조회수 ÷ 팔로워수 — 계정 규모가 다른 콘텐츠 비교 시 우선 지표</div></div>
+    </div>`;
+}
+
+function renderHookSection(h) {
+  const flagRow = [
+    ["제품 등장", h.product_shown], ["인물 등장", h.person_shown], ["숫자 사용", h.number_used],
+    ["질문 사용", h.question_used], ["결과 선공개", h.result_preview], ["비교 장면", h.comparison_shown],
+  ].map(([label, v]) => `<span class="dissect-badge ${v ? "on" : "off"}">${label} ${v ? "O" : "X"}</span>`).join(" ");
+
+  return `
+    <div class="dissect-section-title">02. 0~3초 후킹 분석 ${dtag("AI 분석")}</div>
+    <div class="dissect-box" style="margin-bottom:8px;">
+      <div class="k">후킹 유형</div>
+      <div>${pillList(h.types)}</div>
+    </div>
+    <div class="dissect-grid cols-2">
+      <div class="dissect-box"><div class="k">[실제 관찰] 첫 장면</div><div class="dissect-evidence">${h.first_visual || "-"}</div></div>
+      <div class="dissect-box"><div class="k">[실제 관찰] 첫 대사</div><div class="dissect-evidence">"${h.first_line || "-"}"</div></div>
+      <div class="dissect-box"><div class="k">첫 자막</div><div class="dissect-evidence">${h.first_caption || "없음"}</div></div>
+      <div class="dissect-box"><div class="k">[후킹 장치]</div><div class="dissect-evidence">${h.hook_device || "-"}</div></div>
+    </div>
+    <div class="dissect-box" style="margin:8px 0;">${flagRow}</div>
+    <div class="dissect-box">
+      <div class="k">[벤치마킹 요소]</div>
+      <div class="dissect-evidence">${h.benchmark_point || "-"}</div>
+    </div>`;
+}
+
+function timelineBar(timeline, totalDuration) {
+  if (!timeline.length) return "";
+  const dur = totalDuration || timeline.reduce((m, s) => Math.max(m, s.end || 0), 0) || 1;
+  const bars = timeline.map(t => {
+    const segDur = (t.start != null && t.end != null) ? Math.max(0, t.end - t.start) : (dur / timeline.length);
+    const pct = Math.max(3, (segDur / dur) * 100).toFixed(2);
+    return `<div class="tl-seg item" style="flex-basis:${pct}%" title="${t.role}: ${t.script || ""}">${t.role}</div>`;
+  }).join("");
+  return `
+    <div class="dissect-timeline-wrap">
+      <div class="dissect-timeline">${bars}</div>
+      <div class="dissect-timeline-ticks"><span>0초</span><span>${(dur / 2).toFixed(0)}초</span><span>${dur.toFixed(0)}초</span></div>
+    </div>`;
+}
+
+function renderTimelineSection(a) {
+  const timeline = a.timeline || [];
+  const keyIdx = new Set((a.information_pace || {}).key_info_segment_indices || []);
+  const rows = timeline.map(t => `
+    <div class="dissect-seg-item">
+      <div class="dissect-seg-head"><span class="role-badge">${t.role}</span>${formatTs(t.start)}~${formatTs(t.end)}${keyIdx.has(t.index) ? '<span class="dissect-badge on" style="margin-left:6px;">핵심정보</span>' : ""}</div>
+      <div class="dissect-quote">"${t.script || ""}"</div>
+      <div class="dissect-note">화면: ${t.visual || "-"}</div>
+      <div class="dissect-note">자막: ${t.screen_caption || "-"}</div>
+      ${(t.keywords || []).length ? `<div style="margin-top:4px;">${pillList(t.keywords)}</div>` : ""}
+    </div>`).join("") || `<div class="dissect-note">구간 데이터가 없습니다.</div>`;
+
+  const keyCopyHtml = (a.key_copy || []).length ? `
+    <div class="dissect-box" style="margin-top:10px;">
+      <div class="k">핵심 카피</div>
+      ${a.key_copy.map(k => `
+        <div class="dissect-quote">
+          <span class="ts">${k.timestamp}</span>"${k.text}"
+          <div class="dissect-note">${k.role} · ${(k.copy_type || []).join(", ")} · ${(k.keywords || []).join(", ")}</div>
+        </div>`).join("")}
+    </div>` : "";
+
+  return `
+    <div class="dissect-section-title">03. 구간별 대본 분석 ${dtag("AI 분석")}</div>
+    ${timelineBar(timeline, (a.pacing || {}).video_duration)}
+    ${rows}
+    ${keyCopyHtml}`;
+}
+
+function renderStructureSection(structure) {
+  const chain = (structure || []).map(r => `<span class="struct-node">${r}</span>`).join('<span class="struct-arrow">→</span>');
+  return `
+    <div class="dissect-section-title">04. 콘텐츠 구조 ${dtag("AI 분석")}</div>
+    <div class="struct-chain">${chain || "-"}</div>`;
+}
+
+function renderPacingSection(a) {
+  const p = a.pacing || {};
+  const ip = a.information_pace || {};
+  return `
+    <div class="dissect-section-title">05. 영상 템포 · 정보 전개 속도 ${dtag("AI 분석")}${dtag("계산")}</div>
+    <div class="dissect-grid cols-4">
+      <div class="dissect-box"><div class="k">총 영상 길이</div><div class="v">${fmtSecVal(p.video_duration)}</div></div>
+      <div class="dissect-box"><div class="k">장면/정보 변화</div><div class="v">${p.scene_changes ?? "-"}회</div></div>
+      <div class="dissect-box"><div class="k">평균 변화 간격</div><div class="v">${fmtSecVal(p.average_change_interval)}</div></div>
+      <div class="dissect-box"><div class="k">제품 최초 등장</div><div class="v">${p.product_first_appearance != null ? fmtSecVal(p.product_first_appearance) : "미등장"}</div></div>
+    </div>
+    <div class="dissect-note" style="margin:8px 0;">평균 ${fmtSecVal(p.average_change_interval)}마다 새로운 장면 또는 핵심 정보 등장</div>
+    <div class="dissect-grid cols-2">
+      <div class="dissect-box"><div class="k">핵심 정보 개수</div><div class="v">${ip.key_info_count ?? "-"}개</div></div>
+      <div class="dissect-box"><div class="k">정보당 평균 간격</div><div class="v">${fmtSecVal(ip.average_info_interval)}</div></div>
+    </div>`;
+}
+
+function renderKeywordsSection(k) {
+  return `
+    <div class="dissect-section-title">06. 제품 / 핵심 키워드 ${dtag("AI 분석")}</div>
+    <div class="dissect-grid cols-2">
+      <div class="dissect-box"><div class="k">제품 키워드</div>${pillList(k.product)}</div>
+      <div class="dissect-box"><div class="k">문제 키워드</div>${pillList(k.problem)}</div>
+      <div class="dissect-box"><div class="k">혜택 키워드</div>${pillList(k.benefit)}</div>
+      <div class="dissect-box"><div class="k">결과 키워드</div>${pillList(k.result)}</div>
+    </div>
+    <div class="dissect-box" style="margin-top:8px;"><div class="k">후킹 키워드</div>${pillList(k.hook)}</div>`;
+}
+
+function renderPersuasionSection(list) {
+  const used = (list || []).filter(p => p.used);
+  const unused = (list || []).filter(p => !p.used);
+  const row = p => `
+    <div class="dissect-seg-item">
+      <div class="dissect-seg-head"><span class="dissect-badge ${p.used ? "on" : "off"}">${p.used ? "사용됨" : "사용 안 됨"}</span>${p.type}</div>
+      ${p.used ? `<div class="dissect-quote"><span class="ts">${p.timestamp || ""}</span>${p.evidence}</div>` : ""}
+    </div>`;
+  return `
+    <div class="dissect-section-title">07. 구매 설득 요소 ${dtag("AI 분석")}</div>
+    ${used.map(row).join("")}
+    ${unused.length ? `<div class="dissect-note" style="margin-top:6px;">사용 안 됨: ${unused.map(p => p.type).join(", ")}</div>` : ""}`;
+}
+
+function renderSuccessSection(a) {
+  const factors = (a.success_factors || []).map((s, i) => `<div class="dissect-seg-item"><b>${i + 1}.</b> ${s}</div>`).join("") || `<div class="dissect-note">없음</div>`;
+  const points = (a.benchmark_points || []).map(s => `<li>${s}</li>`).join("") || "<li>없음</li>";
+  return `
+    <div class="dissect-section-title">08. 성공 요인 ${dtag("AI 분석")}</div>
+    ${factors}
+    <div class="dissect-section-title">09. 벤치마킹 포인트 ${dtag("AI 분석")}</div>
+    <ul class="dissect-visual-list">${points}</ul>`;
+}
+
+function renderDissectionHtml(r) {
+  if (r.analysis_error) {
+    return `<div class="placeholder">분석 실패: ${r.analysis_error}</div>`;
+  }
+  const a = r.analysis;
+  if (!a) {
+    return `<div class="placeholder">이 릴스는 분석 데이터가 없습니다 (개편 이전 결과이거나 처리 중 누락됨).</div>`;
+  }
+
+  return `
+    ${renderPerformanceSection(a.performance || {})}
+    ${renderHookSection(a.hook || {})}
+    ${renderTimelineSection(a)}
+    ${renderStructureSection(a.structure)}
+    ${renderPacingSection(a)}
+    ${renderKeywordsSection(a.keywords || {})}
+    ${renderPersuasionSection(a.persuasion)}
+    ${renderSuccessSection(a)}
+    <div class="dissect-section-title">10. 벤치마킹 대본 생성</div>
+    <button class="dissect-toggle" id="dissect-benchmark-btn">이 릴스로 벤치마킹 대본 만들기 →</button>`;
+}
+
+function renderAiReport() {
+  const run = currentRun();
+  const panel = document.getElementById("ai-report-panel");
+  if (!run) { panel.innerHTML = ""; return; }
+
+  if (!run.analysis_html) {
+    panel.innerHTML = `
+      <div class="report-head"><div class="title">AI 해부 리포트 (레이어 1~4)</div></div>
+      <div class="placeholder">이 결과는 아직 해부 리포트가 없습니다 (분석 실패했거나 개편 이전 결과).</div>`;
+    return;
+  }
+
+  panel.innerHTML = `
+    <div class="report-head" id="report-toggle">
+      <div class="title">AI 해부 리포트 (레이어 1~4) <span class="badge">AI 생성</span></div>
+      <div style="font-size:12px;color:var(--muted)">펼치기/접기</div>
+    </div>
+    <div class="report-body collapsed" id="report-body">${run.analysis_html}</div>`;
+
+  document.getElementById("report-toggle").onclick = () => {
+    document.getElementById("report-body").classList.toggle("collapsed");
+  };
+}
+
+function renderDetail() {
+  renderAiReport();
+  renderReelList();
+  renderDetailView();
+}
+
+let BENCHMARKS = [];
+
+function populateBenchReelSelect() {
+  const run = currentRun();
+  const select = document.getElementById("bench-reel-select");
+  const hint = document.getElementById("bench-form-hint");
+  select.innerHTML = "";
+  if (!run || !run.results.length) {
+    select.innerHTML = '<option value="">수집된 릴스 없음</option>';
+    hint.textContent = "먼저 '릴스 수집' 탭에서 릴스를 수집하세요.";
+    return;
+  }
+  hint.textContent = "";
+  run.results.forEach((r, i) => {
+    if (r.error) return;
+    const opt = document.createElement("option");
+    opt.value = i;
+    const cap = (r.caption || r.transcript_text || "").split("\n")[0].slice(0, 30);
+    opt.textContent = `@${r.owner_username || "?"} · ${formatCount(r.views_count)} · ${cap}`;
+    select.appendChild(opt);
+  });
+}
+
+function renderBenchCard(entry) {
+  const s = entry.script || {};
+  const segs = (s.segments || []).map(seg => `
+    <div class="bench-seg">
+      <div class="t">${seg.approx_seconds != null ? seg.approx_seconds.toFixed(1) + "s" : "-"}</div>
+      <div>
+        <div>${seg.text || ""}</div>
+        <div class="role">${seg.role || ""}</div>
+      </div>
+    </div>`).join("");
+
+  return `
+    <div class="bench-card">
+      <div class="bench-card-head">
+        <div class="kw">#${entry.keyword}</div>
+        <div class="meta">기준: ${entry.run_label || ""} · @${entry.reel_owner || "?"} · ${formatChipTime(entry.created_at)}</div>
+      </div>
+      <div class="bench-hook">${s.hook_copy || ""}</div>
+      <div class="bench-segs">${segs}</div>
+      <div class="bench-foot">
+        <div><div class="k">캡션 제안</div><div>${s.caption_suggestion || "-"}</div></div>
+        <div><div class="k">CTA</div><div>${s.cta || "-"}</div></div>
+      </div>
+      <div class="bench-notes">${s.structure_notes || ""}</div>
+    </div>`;
+}
+
+function renderBenchList() {
+  const panel = document.getElementById("bench-panel");
+  if (!BENCHMARKS.length) {
+    panel.innerHTML = '<div class="placeholder">아직 생성한 벤치마킹 대본이 없습니다.</div>';
+    return;
+  }
+  panel.innerHTML = BENCHMARKS.map(renderBenchCard).join("");
+}
+
+async function refreshBenchmarks() {
+  const res = await fetch("/api/benchmarks");
+  BENCHMARKS = await res.json();
+  renderBenchList();
+}
+
+async function renderBench() {
+  populateBenchReelSelect();
+  await refreshBenchmarks();
+}
+
+async function createBenchmark() {
+  const run = currentRun();
+  const select = document.getElementById("bench-reel-select");
+  const keyword = document.getElementById("bench-keyword-input").value.trim();
+  const hint = document.getElementById("bench-form-hint");
+  if (!run) { hint.textContent = "먼저 릴스를 수집하세요."; return; }
+  if (!keyword) { hint.textContent = "키워드를 입력하세요."; return; }
+  if (select.value === "") { hint.textContent = "기준 릴스를 선택하세요."; return; }
+
+  const btn = document.getElementById("bench-create-btn");
+  btn.disabled = true;
+  btn.textContent = "생성 중...";
+  hint.textContent = "";
+
+  try {
+    const res = await fetch("/api/benchmarks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: run.slug, reel_index: parseInt(select.value, 10), keyword }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      hint.textContent = data.error || "생성 실패";
+    } else {
+      document.getElementById("bench-keyword-input").value = "";
+      await refreshBenchmarks();
+    }
+  } catch (e) {
+    hint.textContent = "네트워크 오류: " + e;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "벤치마킹 대본 만들기";
+  }
+}
+
+async function refreshRuns() {
+  const res = await fetch("/api/runs");
+  RUNS = await res.json();
+}
+
+function startCollect() {
+  const query = document.getElementById("query-input").value.trim();
+  if (!query) return;
+  const count = parseInt(document.getElementById("count-input").value, 10) || 10;
+  const mode = document.querySelector('input[name="mode"]:checked').value;
+
+  const btn = document.getElementById("collect-btn");
+  btn.disabled = true;
+  btn.textContent = "수집 중...";
+  document.getElementById("collect-placeholder").hidden = true;
+  const box = document.getElementById("log-box");
+  box.innerHTML = "";
+
+  fetch("/api/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, count, mode }),
+  }).then(r => r.json()).then(data => {
+    if (data.error) {
+      box.innerHTML = `<div class="line">${data.error}</div>`;
+      btn.disabled = false;
+      btn.textContent = "수집";
+      return;
+    }
+    pollJob(data.job_id, btn, box);
+  });
+}
+
+function pollJob(jobId, btn, box) {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    const res = await fetch(`/api/jobs/${jobId}`);
+    const job = await res.json();
+    box.innerHTML = job.log.map(l => `<div class="line">${l}</div>`).join("");
+    box.scrollTop = box.scrollHeight;
+
+    if (job.status === "done") {
+      clearInterval(pollTimer);
+      btn.disabled = false;
+      btn.textContent = "수집";
+      await refreshRuns();
+      selectedSlug = job.slug;
+      selectedReelIdx = 0;
+      renderChips();
+      renderCollectPlaceholder();
+    } else if (job.status === "error") {
+      clearInterval(pollTimer);
+      btn.disabled = false;
+      btn.textContent = "수집";
+      box.innerHTML += `<div class="line">오류: ${job.error}</div>`;
+    }
+  }, 1000);
+}
+
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+document.getElementById("settings-toggle").onclick = () => {
+  const panel = document.getElementById("settings-panel");
+  panel.hidden = !panel.hidden;
+};
+document.getElementById("collect-btn").onclick = startCollect;
+document.getElementById("query-input").addEventListener("keydown", e => { if (e.key === "Enter") startCollect(); });
+document.getElementById("bench-create-btn").onclick = createBenchmark;
+
+renderChips();
+renderCollectPlaceholder();
+</script>
+</body>
+</html>
