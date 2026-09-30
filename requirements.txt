@@ -4,3 +4,4 @@ openai
 imageio-ffmpeg
 flask
 markdown
+gunicorn
